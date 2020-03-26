@@ -863,7 +863,7 @@
        <item>
         <widget class="QTabWidget" name="tabViews">
          <property name="currentIndex">
-          <number>2</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="tab">
           <attribute name="icon">
@@ -3051,7 +3051,7 @@
        <item>
         <widget class="QStackedWidget" name="themeStack">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="stackedWidgetPage1_3">
           <layout class="QVBoxLayout" name="verticalLayout_12">
