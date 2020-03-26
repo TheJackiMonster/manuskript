@@ -108,7 +108,12 @@ class pandocSettings(markdownSettings):
         # pandoc v1 only
         "normalize":    pandocSetting("--normalize", "checkbox", "",
                                       qApp.translate("Export", "Normalize the document (cleaner)")),
-        "base-header":  pandocSetting("--base-header-level=", "number", "",
+        # pandoc  < v2.8
+#       "base-header":  pandocSetting("--base-header-level=", "number", "",
+#                                     qApp.translate("Export", "Specify the base level for headers: "),
+#                                     default=1, min=1),
+        # pandoc >= v2.8
+        "base-header":  pandocSetting("--shift-heading-level-by=", "number", "",
                                       qApp.translate("Export", "Specify the base level for headers: "),
                                       default=1, min=1),
         "disable-YAML": pandocSetting("EXT-yaml_metadata_block", "checkbox", "",
