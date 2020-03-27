@@ -1865,8 +1865,8 @@ class Ui_Settings(object):
 
         self.retranslateUi(Settings)
         self.stack.setCurrentIndex(0)
-        self.tabViews.setCurrentIndex(2)
-        self.themeStack.setCurrentIndex(1)
+        self.tabViews.setCurrentIndex(0)
+        self.themeStack.setCurrentIndex(0)
         self.themeEditStack.setCurrentIndex(3)
         self.lstMenu.currentRowChanged['int'].connect(self.stack.setCurrentIndex)
         self.chkRevisionsKeep.toggled['bool'].connect(self.chkRevisionRemove.setEnabled)
