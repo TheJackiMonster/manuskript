@@ -27,6 +27,9 @@ class BasicHighlighter(QSyntaxHighlighter):
         self.linkColor = QColor(S.link)
         self.spellingErrorColor = QColor(Qt.red)
 
+        self._grammarErrorColor = QColor(48, 254, 210)
+        self._otherErrorColor = QColor(201,205,255)
+
     def setDefaultBlockFormat(self, bf):
         self._defaultBlockFormat = bf
         self.rehighlight()
@@ -134,32 +137,35 @@ class BasicHighlighter(QSyntaxHighlighter):
                            txt.end() - txt.start(),
                            fmt)
 
-        # Spell checking
+        if hasattr(self.editor, "spellcheck") and self.editor.spellcheck and self.editor._dict:
+            # Spell checking
 
-        # Following algorithm would not check words at the end of line.
-        # This hacks adds a space to every line where the text cursor is not
-        # So that it doesn't spellcheck while typing, but still spellchecks at
-        # end of lines. See github's issue #166.
-        textedText = text
-        if self.currentBlock().position() + len(text) != \
-           self.editor.textCursor().position():
-            textedText = text + " "
+            # Following algorithm would not check words at the end of line.
+            # This hacks adds a space to every line where the text cursor is not
+            # So that it doesn't spellcheck while typing, but still spellchecks at
+            # end of lines. See github's issue #166.
+            textedText = text
+            if self.currentBlock().position() + len(text) != \
+               self.editor.textCursor().position():
+                textedText = text + " "
 
-        # Based on http://john.nachtimwald.com/2009/08/22/qplaintextedit-with-in-line-spell-check/
-        WORDS = r'(?iu)((?:[^_\W]|\')+)[^A-Za-z0-9\']'
-        #         (?iu) means case insensitive and Unicode
-        #              ((?:[^_\W]|\')+) means words exclude underscores but include apostrophes
-        #                              [^A-Za-z0-9\'] used with above hack to prevent spellcheck while typing word
-        #
-        # See also https://stackoverflow.com/questions/2062169/regex-w-in-utf-8
-        if hasattr(self.editor, "spellcheck") and self.editor.spellcheck:
-            for word_object in re.finditer(WORDS, textedText):
-                if (self.editor._dict
-                        and self.editor._dict.isMisspelled(word_object.group(1))):
-                    format = self.format(word_object.start(1))
+            # The text should only be checked once as a whole
+            for match in self.editor._dict.checkText(textedText):
+                # Matches can be separated by their type (all of them listed here):
+                # https://languagetool.org/development/api/org/languagetool/rules/ITSIssueType.html
+                if match.locqualityissuetype == 'misspelling':
+                    format = self.format(match.start)
                     format.setUnderlineColor(self._misspelledColor)
                     # SpellCheckUnderline fails with some fonts
                     format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
-                    self.setFormat(word_object.start(1),
-                                   word_object.end(1) - word_object.start(1),
-                                   format)
+                    self.setFormat(match.start, match.end - match.start, format)
+                elif (match.locqualityissuetype == 'grammar' or match.locqualityissuetype == 'typographical'):
+                    format = self.format(match.start)
+                    format.setUnderlineColor(self._grammarErrorColor)
+                    format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
+                    self.setFormat(match.start, match.end - match.start, format)
+                else:
+                    format = self.format(match.start)
+                    format.setUnderlineColor(self._otherErrorColor)
+                    format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
+                    self.setFormat(match.start, match.end - match.start, format)
