@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # --!-- coding: utf8 --!--
-import re
+import re, textwrap
 
 from PyQt5.Qt import QApplication
 from PyQt5.QtCore import QTimer, QModelIndex, Qt, QEvent, pyqtSignal, QRegExp, QLocale, QPersistentModelIndex, QMutex
@@ -450,32 +450,81 @@ class textEditView(QTextEdit):
         # Check if the selected word is misspelled and offer spelling
         # suggestions if it is.
         if self._dict and cursor.hasSelection():
-            text = str(cursor.selectedText())
-            valid = not self._dict.isMisspelled(text)
+            text = self.toPlainText()
+
+            # Searches for correlating/overlapping matches
+            suggestions = self._dict.findSuggestions(text, cursor.selectionStart(), cursor.selectionEnd())
+
+            valid = len(suggestions) == 0
             selectedWord = cursor.selectedText()
+
             if not valid:
-                spell_menu = QMenu(self.tr('Spelling Suggestions'), self)
-                spell_menu.setIcon(F.themeIcon("spelling"))
-                for word in self._dict.getSuggestions(text):
-                    action = self.SpellAction(word, spell_menu)
-                    action.correct.connect(self.correctWord)
-                    spell_menu.addAction(action)
+                # I think it should focus on one type of error at a time.
+                match = suggestions[0]
+
                 popup_menu.insertSeparator(popup_menu.actions()[0])
-                # Adds: add to dictionary
-                addAction = QAction(self.tr("&Add to dictionary"), popup_menu)
-                addAction.setIcon(QIcon.fromTheme("list-add"))
-                addAction.triggered.connect(self.addWordToDict)
-                addAction.setData(selectedWord)
-                popup_menu.insertAction(popup_menu.actions()[0], addAction)
-                # Only add the spelling suggests to the menu if there are
-                # suggestions.
-                if len(spell_menu.actions()) != 0:
-                    # Adds: suggestions
-                    popup_menu.insertMenu(popup_menu.actions()[0], spell_menu)
-                    # popup_menu.insertSeparator(popup_menu.actions()[0])
+
+                if match.locqualityissuetype == 'misspelling':
+                    spell_menu = QMenu(self.tr('Spelling Suggestions'), self)
+                    spell_menu.setIcon(F.themeIcon("spelling"))
+
+                    for word in match.replacements:
+                        action = self.SpellAction(word, spell_menu)
+                        action.correct.connect(self.correctWord)
+                        spell_menu.addAction(action)
+
+                    # Adds: add to dictionary
+                    addAction = QAction(self.tr("&Add to dictionary"), popup_menu)
+                    addAction.setIcon(QIcon.fromTheme("list-add"))
+                    addAction.triggered.connect(self.addWordToDict)
+                    addAction.setData(selectedWord)
+
+                    popup_menu.insertAction(popup_menu.actions()[0], addAction)
+
+                    # Only add the spelling suggests to the menu if there are
+                    # suggestions.
+                    if len(match.replacements) > 0:
+                        # Adds: suggestions
+                        popup_menu.insertMenu(popup_menu.actions()[0], spell_menu)
+                else:
+                    correct_menu = None
+                    correct_action = None
+
+                    if (len(match.replacements) > 0 and match.end > match.start):
+                        # Select the actual area of the match
+                        cursor = self.textCursor()
+                        cursor.setPosition(match.start, QTextCursor.MoveAnchor);
+                        cursor.setPosition(match.end, QTextCursor.KeepAnchor);
+                        self.setTextCursor(cursor)
+
+                        if len(match.replacements) > 0:
+                            correct_menu = QMenu(self.tr('&Correction Suggestions'), self)
+                            correct_menu.setIcon(F.themeIcon("spelling"))
+
+                            for word in match.replacements:
+                                action = self.SpellAction(word, correct_menu)
+                                action.correct.connect(self.correctWord)
+                                correct_menu.addAction(action)
+
+                    if correct_menu == None:
+                        correct_action = QAction(self.tr('&Correction Suggestion'), popup_menu)
+                        correct_action.setIcon(F.themeIcon("spelling"))
+                        correct_action.setEnabled(False)
+
+                    # Wrap the message into a fitting width
+                    msg_lines = textwrap.wrap(match.msg, 48)
+
+                    # Insert the lines of the message backwards
+                    for i in range(0, len(msg_lines)):
+                        popup_menu.insertSection(popup_menu.actions()[0], msg_lines[len(msg_lines) - (i + 1)])
+
+                    if correct_menu != None:
+                        popup_menu.insertMenu(popup_menu.actions()[0], correct_menu)
+                    else:
+                        popup_menu.insertAction(popup_menu.actions()[0], correct_action)
 
             # If word was added to custom dict, give the possibility to remove it
-            elif valid and self._dict.isCustomWord(selectedWord):
+            elif self._dict.isCustomWord(selectedWord):
                 popup_menu.insertSeparator(popup_menu.actions()[0])
                 # Adds: remove from dictionary
                 rmAction = QAction(self.tr("&Remove from custom dictionary"), popup_menu)
