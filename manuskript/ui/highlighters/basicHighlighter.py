@@ -18,7 +18,6 @@ class BasicHighlighter(QSyntaxHighlighter):
         QSyntaxHighlighter.__init__(self, editor.document())
 
         self.editor = editor
-        self._misspelledColor = Qt.red
         self._defaultBlockFormat = QTextBlockFormat()
         self._defaultCharFormat = QTextCharFormat()
         self.defaultTextColor = QColor(S.text)
@@ -27,8 +26,39 @@ class BasicHighlighter(QSyntaxHighlighter):
         self.linkColor = QColor(S.link)
         self.spellingErrorColor = QColor(Qt.red)
 
-        self._grammarErrorColor = QColor(48, 254, 210)
-        self._otherErrorColor = QColor(201,205,255)
+        # Matches during checking can be separated by their type (all of them listed here):
+        # https://languagetool.org/development/api/org/languagetool/rules/ITSIssueType.html
+        #
+        # These are the colors for actual spell-, grammar- and style-checking:
+        self._errorColors = {
+            'addition' : QColor(255, 215, 0),               # gold
+            'characters' : QColor(135, 206, 235),           # sky blue
+            'duplication' : QColor(0, 255, 255),            # cyan / aqua
+            'formatting' : QColor(0, 128, 128),             # teal
+            'grammar' : QColor(0, 0, 255),                  # blue
+            'inconsistency' : QColor(128, 128, 0),          # olive
+            'inconsistententities' : QColor(46, 139, 87),   # sea green
+            'internationalization' : QColor(255, 165, 0),   # orange
+            'legal' : QColor(255, 69, 0),                   # orange red
+            'length' : QColor(47, 79, 79),                  # dark slate gray
+            'localespecificcontent' : QColor(188, 143, 143),# rosy brown
+            'localeviolation' : QColor(128, 0, 0),          # maroon
+            'markup' : QColor(128, 0, 128),                 # purple
+            'misspelling' : QColor(255, 0, 0),              # red
+            'mistranslation' : QColor(255, 0, 255),         # magenta / fuchsia
+            'nonconformance' : QColor(255, 218, 185),       # peach puff
+            'numbers' : QColor(65, 105, 225),               # royal blue
+            'omission' : QColor(255, 20, 147),              # deep pink
+            'other' : QColor(138, 43, 226),                 # blue violet
+            'patternproblem' : QColor(0, 128, 0),           # green
+            'register' : QColor(112,128,144),               # slate gray
+            'style' : QColor(0, 255, 0),                    # lime
+            'terminology' : QColor(0, 0, 128),              # navy
+            'typographical' : QColor(255, 255, 0),          # yellow
+            'uncategorized' : QColor(128, 128, 128),        # gray
+            'untranslated' : QColor(210, 105, 30),          # chocolate
+            'whitespace' : QColor(192, 192, 192)            # silver
+        }
 
     def setDefaultBlockFormat(self, bf):
         self._defaultBlockFormat = bf
@@ -39,7 +69,7 @@ class BasicHighlighter(QSyntaxHighlighter):
         self.rehighlight()
 
     def setMisspelledColor(self, color):
-        self._misspelledColor = color
+        self._errorColors['misspelled'] = color
 
     def updateColorScheme(self, rehighlight=True):
         """
@@ -151,21 +181,11 @@ class BasicHighlighter(QSyntaxHighlighter):
 
             # The text should only be checked once as a whole
             for match in self.editor._dict.checkText(textedText):
-                # Matches can be separated by their type (all of them listed here):
-                # https://languagetool.org/development/api/org/languagetool/rules/ITSIssueType.html
-                if match.locqualityissuetype == 'misspelling':
+                if match.locqualityissuetype in self._errorColors:
+                    highlight_color = self._errorColors[match.locqualityissuetype]
+
                     format = self.format(match.start)
-                    format.setUnderlineColor(self._misspelledColor)
+                    format.setUnderlineColor(highlight_color)
                     # SpellCheckUnderline fails with some fonts
-                    format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
-                    self.setFormat(match.start, match.end - match.start, format)
-                elif (match.locqualityissuetype == 'grammar' or match.locqualityissuetype == 'typographical'):
-                    format = self.format(match.start)
-                    format.setUnderlineColor(self._grammarErrorColor)
-                    format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
-                    self.setFormat(match.start, match.end - match.start, format)
-                else:
-                    format = self.format(match.start)
-                    format.setUnderlineColor(self._otherErrorColor)
                     format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
                     self.setFormat(match.start, match.end - match.start, format)

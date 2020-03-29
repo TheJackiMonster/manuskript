@@ -209,7 +209,7 @@ class BasicDictionary:
     def findSuggestions(self, text, start, end):
         word = text[start:end]
 
-        if self.isMisspelled(word):
+        if (self.isMisspelled(word) and not self.isCustomWord(word)):
             match = BasicMatch(start, end)
             match.replacements = self.getSuggestions(word)
 
@@ -474,6 +474,35 @@ class SymSpellDictionary(BasicDictionary):
         # Since 6.3.8
         self._dict.delete_dictionary_entry(word)
 
+class LanguageToolCache:
+
+    def __init__(self, tool, text):
+        self._length = len(text)
+        self._matches = self._buildMatches(tool, text)
+
+    def getMatches(self):
+        return self._matches
+
+    def _buildMatches(self, tool, text):
+        matches = []
+
+        for match in tool.check(text):
+            start = match.offset
+            end = start + match.errorlength
+
+            basic_match = BasicMatch(start, end)
+            basic_match.locqualityissuetype = match.locqualityissuetype
+            basic_match.replacements = match.replacements
+            basic_match.msg = match.msg
+
+            matches.append(basic_match)
+
+        return matches
+
+    def update(self, tool, text):
+        if len(text) != self._length:
+            self._matches = self._buildMatches(tool, text)
+
 class LanguageToolDictionary(BasicDictionary):
 
     def __init__(self, name):
@@ -483,8 +512,7 @@ class LanguageToolDictionary(BasicDictionary):
             self._lang = self.getDefaultDictionary()
 
         self._tool = languagetool.LanguageTool(self._lang)
-        self._word_matches = {}
-        self._text_matches = {}
+        self._cache = {}
 
     @staticmethod
     def getLibraryName():
@@ -525,44 +553,33 @@ class LanguageToolDictionary(BasicDictionary):
     def checkText(self, text):
         matches = []
 
-        if not text in self._text_matches:
-            self._text_matches[text] = self._tool.check(text)
+        if len(text) == 0:
+            return matches
 
-        lines = text.splitlines()
+        textId = hash(text)
+        cacheEntry = None
 
-        for match in self._text_matches[text]:
-            start = match.offset
-            end = start + match.errorlength
+        if not textId in self._cache:
+            cacheEntry = LanguageToolCache(self._tool, text)
 
-            basic_match = BasicMatch(start, end)
-            basic_match.locqualityissuetype = match.locqualityissuetype
-            basic_match.replacements = match.replacements
-            basic_match.msg = match.msg
+            self._cache[textId] = cacheEntry
+        else:
+            cacheEntry = self._cache[textId]
+            cacheEntry.update(self._tool, text)
 
-            word = basic_match.getWord(text)
+        for match in cacheEntry.getMatches():
+            word = match.getWord(text)
 
-            if not (basic_match.locqualityissuetype == 'misspelling' and self.isCustomWord(word)):
-                if not word in self._word_matches:
-                    self._word_matches[word] = [ match ]
-                else:
-                    if not match in self._word_matches[word]:
-                        self._word_matches[word].append(match)
-
-                matches.append(basic_match)
+            if not (match.locqualityissuetype == 'misspelling' and self.isCustomWord(word)):
+                matches.append(match)
 
         return matches
-
-    def getMatches(self, word):
-        if not word in self._word_matches:
-            self._word_matches[word] = self._tool.check(word)
-
-        return self._word_matches[word]
 
     def isMisspelled(self, word):
         if self.isCustomWord(word):
             return False
 
-        for match in self.getMatches(word):
+        for match in self.checkText(word):
             if match.locqualityissuetype == 'misspelling':
                 return True
 
@@ -571,7 +588,7 @@ class LanguageToolDictionary(BasicDictionary):
     def getSuggestions(self, word):
         suggestions = []
 
-        for match in self.getMatches(word):
+        for match in self.checkText(word):
             suggestions += match.replacements
 
         return suggestions
@@ -580,9 +597,9 @@ class LanguageToolDictionary(BasicDictionary):
         matches = []
 
         for match in self.checkText(text):
+            # Check for overlapping area:
             if (match.end > start and match.start < end):
                 matches.append(match)
-                print(match.getWord(text) + " " + text[start:end] + " " + match.locqualityissuetype)
 
         return matches
 
