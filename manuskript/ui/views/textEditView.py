@@ -5,7 +5,7 @@ import re, textwrap
 from PyQt5.Qt import QApplication
 from PyQt5.QtCore import QTimer, QModelIndex, Qt, QEvent, pyqtSignal, QRegExp, QLocale, QPersistentModelIndex, QMutex
 from PyQt5.QtGui import QTextBlockFormat, QTextCharFormat, QFont, QColor, QIcon, QMouseEvent, QTextCursor
-from PyQt5.QtWidgets import QWidget, QTextEdit, qApp, QAction, QMenu
+from PyQt5.QtWidgets import QWidget, QTextEdit, qApp, QAction, QMenu, QToolTip
 
 from manuskript import settings
 from manuskript.enums import Outline, World, Character, Plot
@@ -47,6 +47,8 @@ class textEditView(QTextEdit):
         self.highlightWord = ""
         self.highligtCS = False
         self._dict = None
+        self._tooltip = { 'depth' : 0, 'active' : 0 }
+
         # self.document().contentsChanged.connect(self.submit, F.AUC)
 
         # Submit text changed only after 500ms without modifications
@@ -393,6 +395,49 @@ class textEditView(QTextEdit):
                                 Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
         QTextEdit.mousePressEvent(self, event)
 
+    def beginTooltipMoveEvent(self):
+        self._tooltip['depth'] += 1
+
+    def endTooltipMoveEvent(self):
+        self._tooltip['depth'] -= 1
+
+    def showTooltip(self, pos, text):
+        QToolTip.showText(pos, text)
+        self._tooltip['active'] = self._tooltip['depth']
+
+    def hideTooltip(self):
+        if self._tooltip['active'] == self._tooltip['depth']:
+            QToolTip.hideText()
+
+    def mouseMoveEvent(self, event):
+        """
+        When mouse moves, we show tooltip when appropriate.
+        """
+        self.beginTooltipMoveEvent()
+        QTextEdit.mouseMoveEvent(self, event)
+        self.endTooltipMoveEvent()
+
+        match = None
+
+        # Check if the selected word has any suggestions for correction
+        if self._dict:
+            cursor = self.cursorForPosition(event.pos())
+
+            # Searches for correlating/overlapping matches
+            suggestions = self._dict.findSuggestions(self.toPlainText(), cursor.selectionStart(), cursor.selectionEnd())
+
+            if len(suggestions) > 0:
+                # I think it should focus on one type of error at a time.
+                match = suggestions[0]
+
+        if match:
+            # Wrap the message into a fitting width
+            msg_lines = textwrap.wrap(match.msg, 48)
+
+            self.showTooltip(event.globalPos(), "\n".join(msg_lines))
+        else:
+            self.hideTooltip()
+
     def wheelEvent(self, event):
         """
         We catch wheelEvent if key modifier is CTRL to change font size.
@@ -440,23 +485,31 @@ class textEditView(QTextEdit):
         if not self.spellcheck:
             return popup_menu
 
-        # Select the word under the cursor.
-        # But only if there is no selection (otherwise it's impossible to select more text to copy/cut)
         cursor = self.textCursor()
-        if not cursor.hasSelection():
-            cursor.select(QTextCursor.WordUnderCursor)
-            self.setTextCursor(cursor)
+        suggestions = []
+        selectedWord = None
 
-        # Check if the selected word is misspelled and offer spelling
-        # suggestions if it is.
-        if self._dict and cursor.hasSelection():
+        # Check for any suggestions for corrections at the cursors position
+        if self._dict:
             text = self.toPlainText()
 
-            # Searches for correlating/overlapping matches
             suggestions = self._dict.findSuggestions(text, cursor.selectionStart(), cursor.selectionEnd())
 
+            # Select the word under the cursor if necessary.
+            # But only if there is no selection (otherwise it's impossible to select more text to copy/cut)
+            if (not cursor.hasSelection() and len(suggestions) == 0):
+                cursor.select(QTextCursor.WordUnderCursor)
+                self.setTextCursor(cursor)
+
+                if cursor.hasSelection():
+                    selectedWord = cursor.selectedText()
+
+                    # Check if the selected word is misspelled and offer spelling
+                    # suggestions if it is.
+                    suggestions = self._dict.findSuggestions(text, cursor.selectionStart(), cursor.selectionEnd())
+
+        if (len(suggestions) > 0 or selectedWord):
             valid = len(suggestions) == 0
-            selectedWord = cursor.selectedText()
 
             if not valid:
                 # I think it should focus on one type of error at a time.
@@ -467,6 +520,15 @@ class textEditView(QTextEdit):
                 if match.locqualityissuetype == 'misspelling':
                     spell_menu = QMenu(self.tr('Spelling Suggestions'), self)
                     spell_menu.setIcon(F.themeIcon("spelling"))
+
+                    if (match.end > match.start and not selectedWord):
+                        # Select the actual area of the match
+                        cursor = self.textCursor()
+                        cursor.setPosition(match.start, QTextCursor.MoveAnchor);
+                        cursor.setPosition(match.end, QTextCursor.KeepAnchor);
+                        self.setTextCursor(cursor)
+
+                        selectedWord = cursor.selectedText()
 
                     for word in match.replacements:
                         action = self.SpellAction(word, spell_menu)

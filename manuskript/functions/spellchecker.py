@@ -207,15 +207,16 @@ class BasicDictionary:
         raise NotImplemented
 
     def findSuggestions(self, text, start, end):
-        word = text[start:end]
+        if start < end:
+            word = text[start:end]
 
-        if (self.isMisspelled(word) and not self.isCustomWord(word)):
-            match = BasicMatch(start, end)
-            match.replacements = self.getSuggestions(word)
+            if (self.isMisspelled(word) and not self.isCustomWord(word)):
+                match = BasicMatch(start, end)
+                match.replacements = self.getSuggestions(word)
 
-            return [ match ]
-        else:
-            return []
+                return [ match ]
+
+        return []
 
     def isCustomWord(self, word):
         return word.lower() in self._customDict
@@ -595,11 +596,18 @@ class LanguageToolDictionary(BasicDictionary):
 
     def findSuggestions(self, text, start, end):
         matches = []
+        checked = self.checkText(text)
 
-        for match in self.checkText(text):
+        if start == end:
+            # Check for containing area:
+            for match in checked:
+                if (start >= match.start and start <= match.end):
+                    matches.append(match)
+        else:
             # Check for overlapping area:
-            if (match.end > start and match.start < end):
-                matches.append(match)
+            for match in checked:
+                if (match.end > start and match.start < end):
+                    matches.append(match)
 
         return matches
 
