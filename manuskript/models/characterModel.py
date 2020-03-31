@@ -132,19 +132,25 @@ class characterModel(QAbstractItemModel):
     def importance(self, row):
         return self.character(row).importance()
 
+    def pov(self, row):
+        return self.character(row).pov()
+
 ###############################################################################
 # MODEL QUERIES
 ###############################################################################
 
-    def getCharactersByImportance(self):
+    def getCharactersByImportance(self, pov_filter=False):
         """
         Lists characters by importance.
 
         @return: array of array of ´character´, by importance.
         """
         r = [[], [], []]
+
         for c in self.characters:
-            r[2-int(c.importance())].append(c)
+            if not pov_filter or c.pov():
+                r[2-int(c.importance())].append(c)
+
         return r
 
     def getCharacterByID(self, ID):
@@ -153,6 +159,7 @@ class characterModel(QAbstractItemModel):
             for c in self.characters:
                 if c.ID() == ID:
                     return c
+
         return None
 
 ###############################################################################
@@ -231,6 +238,7 @@ class Character():
         self.assignUniqueID()
         self.assignRandomColor()
         self._data[C.importance.value] = "0"
+        self._data[C.pov.value] = "True"
 
         self.infos = []
 
@@ -273,6 +281,15 @@ class Character():
         @return: QColor
         """
         return iconColor(self.icon)
+
+    def setPOVEnabled(self, enabled):
+        if enabled:
+            self._data[C.pov.value] = 'True'
+        else:
+            self._data[C.pov.value] = 'False'
+
+    def pov(self):
+        return self._data[C.pov.value] == 'True'
 
     def assignUniqueID(self, parent=QModelIndex()):
         """Assigns an unused character ID."""
