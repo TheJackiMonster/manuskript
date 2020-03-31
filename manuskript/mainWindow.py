@@ -379,6 +379,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.chkPersoPOV.setCheckState(Qt.Unchecked)
 
         self.chkPersoPOV.stateChanged.connect(self.lstCharacters.changeCharacterPOVState, F.AUC)
+        self.chkPersoPOV.setEnabled(len(self.mdlOutline.findItemsByPOV(ID)) == 0)
 
     ###############################################################################
     # PLOTS
