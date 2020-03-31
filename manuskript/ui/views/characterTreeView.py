@@ -153,8 +153,7 @@ class characterTreeView(QTreeWidget):
         self._model.addCharacterInfo(self.currentCharacterID())
 
     def removeCharacterInfo(self):
-        self._model.removeCharacterInfo(self.currentCharacterID(),
-                                        )
+        self._model.removeCharacterInfo(self.currentCharacterID())
 
     def currentCharacterID(self):
         ID = None

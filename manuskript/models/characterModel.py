@@ -139,7 +139,7 @@ class characterModel(QAbstractItemModel):
 # MODEL QUERIES
 ###############################################################################
 
-    def getCharactersByImportance(self, pov_filter=False):
+    def getCharactersByImportance(self):
         """
         Lists characters by importance.
 
@@ -148,8 +148,7 @@ class characterModel(QAbstractItemModel):
         r = [[], [], []]
 
         for c in self.characters:
-            if not pov_filter or c.pov():
-                r[2-int(c.importance())].append(c)
+            r[2-int(c.importance())].append(c)
 
         return r
 
@@ -283,10 +282,17 @@ class Character():
         return iconColor(self.icon)
 
     def setPOVEnabled(self, enabled):
-        if enabled:
-            self._data[C.pov.value] = 'True'
-        else:
-            self._data[C.pov.value] = 'False'
+        if enabled != self.pov():
+            if enabled:
+                self._data[C.pov.value] = 'True'
+            else:
+                self._data[C.pov.value] = 'False'
+
+            try:
+                self._model.dataChanged.emit(self.index(), self.index())
+            except:
+                # If it is the initialisation, won't be able to emit
+                pass
 
     def pov(self):
         return self._data[C.pov.value] == 'True'
