@@ -420,7 +420,7 @@ class textEditView(QTextEdit):
         match = None
 
         # Check if the selected word has any suggestions for correction
-        if self._dict:
+        if self.spellcheck and self._dict:
             cursor = self.cursorForPosition(event.pos())
 
             # Searches for correlating/overlapping matches
