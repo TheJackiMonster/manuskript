@@ -5,7 +5,6 @@ import os, gzip, json, glob, re
 from PyQt5.QtCore import QLocale
 from collections import OrderedDict
 from manuskript.functions import writablePath
-from multiprocessing import Pool
 
 try:
     import enchant
@@ -525,7 +524,14 @@ class LanguageToolDictionary(BasicDictionary):
 
     @staticmethod
     def isInstalled():
-        return languagetool is not None
+        if languagetool is not None:
+
+            # This check, if Java is installed, is necessary to
+            # make sure LanguageTool can be run without problems.
+            #
+            return (os.system('java -version') == 0)
+
+        return False
 
     @staticmethod
     def availableDictionaries():
